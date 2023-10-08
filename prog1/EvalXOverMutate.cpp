@@ -31,21 +31,15 @@ int compare(const void* a, const void* b) {
  * Evaluates each trip (or chromosome) and sort them out
  * CHANGE: instead of coordinates, cached distance matrix will be passed
  */
-void evaluate( Trip trip[CHROMOSOMES], double distance_matrix[CITIES][CITIES] ) {
-	#pragma omp parallel for
+void evaluate( Trip trip[CHROMOSOMES], double distance_matrix[CITIES][CITIES], map<char, int> index_map ) {
+	#pragma omp parallel for shared( trip )
 	for ( int i = 0; i < CHROMOSOMES ; i++ ) {
-		double distance = 0.0;
-		cout<<"race1"<<endl;
-		for ( int j = 0; j < CITIES - 1; j++ ) {
-			int index_from = ( trip[i].itinerary[j] >= 'A' ) ? trip[i].itinerary[j] - 'A' : trip[i].itinerary[j] - '0' + 26;
-			int index_to = ( trip[i].itinerary[j+1] >= 'A' ) ? trip[i].itinerary[j+1] - 'A' : trip[i].itinerary[j+1] - '0' + 26;
-			distance += distance_matrix[index_from][index_to];
-			cout<<"race2"<<endl;
+		double distance = distance_matrix[index_map[trip[i].itinerary[0]]][index_map[trip[i].itinerary[1]]];
+		for ( int j = 1; j < CITIES - 1; j++ ) {
+			distance += distance_matrix[index_map[trip[i].itinerary[j]]][index_map[trip[i].itinerary[j+1]]];
 		}
 		trip[i].fitness = distance;
-		cout<<"race3"<<endl;
 	}
-	cout<<"race4"<<endl;
 
 	// sort the trips in descending order of fitness
 	qsort( trip, CHROMOSOMES, sizeof( Trip ), compare );
@@ -56,22 +50,21 @@ void evaluate( Trip trip[CHROMOSOMES], double distance_matrix[CITIES][CITIES] ) 
  * Note that the i-th and (i+1)-th offsprings are created from the i-th and (i+1)-th parents
  * CHANGE: instead of coordinates, cached distance matrix will be passed
  */
-void crossover( Trip parents[TOP_X], Trip offsprings[TOP_X], double distance_matrix[CITIES][CITIES], map<char, char> complement_map ) {
+void crossover( Trip parents[TOP_X], Trip offsprings[TOP_X], double distance_matrix[CITIES][CITIES], map<char, char> complement_map, map<char, int> index_map ) {
 	map<char, bool> visited;
 
-	#pragma omp parallel for
+	#pragma omp parallel for shared( parents, offsprings, visited )
  	for (int i = 0; i < TOP_X; i++)
 	{
 		string parent1 = parents[i].itinerary;
 		string parent2 = parents[i+1].itinerary;
 
-		char child1[CITIES] = " ";
-		char child2[CITIES] = " ";
+		char child1[CITIES + 1] = " ";
+		char child2[CITIES + 1] = " ";
 
 		child1[0] = parent1[0];
 		visited[parent1[0]] = true;
 
-		cout<<"race5"<<endl;
 		for (int j = 1; j < CITIES; j++) {
 			char prev_child = child1[j-1];
 
@@ -81,27 +74,24 @@ void crossover( Trip parents[TOP_X], Trip offsprings[TOP_X], double distance_mat
 			int parent1_next_index = (parent1_index + 1) % CITIES;
 			int parent2_next_index = (parent2_index + 1) % CITIES;
 
-			cout<<"race6"<<endl;
 			if ( visited[parent1[parent1_next_index]] && visited[parent2[parent2_next_index]] ) {
 				int rand_num = rand() % CITIES;
 				char next_city = parent1[rand_num];
 				
 				while ( visited[next_city] ) {
-					cout<<"race7"<<endl;
 					rand_num = (rand_num + 1) % CITIES;
 					next_city = parent1[rand_num];
 				}
 				
 				child1[j] = next_city;
-				cout<<"race8"<<endl;
 			} else if ( visited[parent1[parent1_next_index]] ) {
 				child1[j] = parent2[parent2_next_index];
 			} else if ( visited[parent2[parent2_next_index]] ) {
 				child1[j] = parent1[parent1_next_index];
 			} else {
-				int index_from = ( prev_child >= 'A' ) ? prev_child - 'A' : prev_child - '0' + 26;
-				int parent1_index_to = ( parent1[parent1_next_index] >= 'A' ) ? parent1[parent1_next_index] - 'A' : parent1[parent1_next_index] - '0' + 26;
-				int parent2_index_to = ( parent2[parent2_next_index] >= 'A' ) ? parent2[parent2_next_index] - 'A' : parent2[parent2_next_index] - '0' + 26;
+				int index_from = index_map[prev_child];
+				int parent1_index_to = index_map[parent1[parent1_next_index]];
+				int parent2_index_to = index_map[parent2[parent2_next_index]];
 
 				if ( distance_matrix[index_from][parent1_index_to] <= distance_matrix[index_from][parent2_index_to] ) {
 					child1[j] = parent1[parent1_next_index];
@@ -125,7 +115,7 @@ void crossover( Trip parents[TOP_X], Trip offsprings[TOP_X], double distance_mat
 /* 
  * Mutate a pair of genes in each offspring.
  */
-void mutate( Trip offsprings[TOP_X], double distance_matrix[CITIES][CITIES] ) {
+void mutate( Trip offsprings[TOP_X], double distance_matrix[CITIES][CITIES], map<char, int> index_map ) {
 	for (int i = 0; i < TOP_X; i++) {
 		int rand_num = rand() % 100;
 		if ( rand_num < MUTATE_RATE ) {
@@ -140,13 +130,13 @@ void mutate( Trip offsprings[TOP_X], double distance_matrix[CITIES][CITIES] ) {
 			temp[rand_num1] = offsprings[i].itinerary[rand_num2];
 			temp[rand_num2] = offsprings[i].itinerary[rand_num1];
 			for(int j = 0; j < CITIES - 1; j++) {
-				int temp_index_from = ( temp[j] >= 'A' ) ? temp[j] - 'A' : temp[j] - '0' + 26;
-				int temp_index_to = ( temp[j+1] >= 'A' ) ? temp[j+1] - 'A' : temp[j+1] - '0' + 26;
+				int temp_index_from = index_map[temp[j]];
+				int temp_index_to = index_map[temp[j+1]];
 				temp_distance += distance_matrix[temp_index_from][temp_index_to];
 
-				int index_from = ( temp[j] >= 'A' ) ? temp[j] - 'A' : temp[j] - '0' + 26;
-				int index_to = ( temp[j+1] >= 'A' ) ? temp[j+1] - 'A' : temp[j+1] - '0' + 26;
-				offspring_distance += distance_matrix[temp_index_from][temp_index_to];
+				int index_from = index_map[offsprings[i].itinerary[j]];
+				int index_to = index_map[offsprings[i].itinerary[j+1]];
+				offspring_distance += distance_matrix[index_from][index_to];
 			}	
 			
 			if ( temp_distance < offspring_distance ) {
@@ -160,7 +150,7 @@ void mutate( Trip offsprings[TOP_X], double distance_matrix[CITIES][CITIES] ) {
 /**
  * populate complement map during initial setup
 */
-void set_complement_map(map<char, char> &complement_map) {
+void set_complement_map( map<char, char> &complement_map ) {
 	#pragma omp parallel for shared(complement_map)
 	for(int i = 0; i < CITIES ; i++) {
 		complement_map[city_map[i]] = city_map[CITIES - i - 1];
@@ -175,26 +165,26 @@ void set_complement_map(map<char, char> &complement_map) {
 /**
  * evaluate and store distance matrix for faster retrieval later
 */
-void set_distance_matrix(int coordinates[CITIES][2], double distance_matrix[CITIES][CITIES]) {
-		#pragma omp parallel for shared(distance_matrix)
-		for( int i = 0; i < CITIES; i++ ) {
-			for( int j = i; j < CITIES; j++ ) {
-				// get (x,y) coordinates of city i 
-				int x2 = coordinates[i][0];
-				int y2 = coordinates[i][1];
+void set_distance_matrix( int coordinates[CITIES][2], double distance_matrix[CITIES][CITIES] ) {
+	#pragma omp parallel for shared(distance_matrix)
+	for( int i = 0; i < CITIES; i++ ) {
+		for( int j = i; j < CITIES; j++ ) {
+			// get (x,y) coordinates of city i 
+			int x2 = coordinates[i][0];
+			int y2 = coordinates[i][1];
 
-				// if same city is selected set distance to 0 
-				if ( i == j ) {
-					distance_matrix[i][j] = 0.0;
-				} else {
-					// calculate euclidean distance with city j and store it in distance matrix as distance from i->j and j->i
-					double distance_x = x2 - coordinates[j][0];
-					double distance_y = y2 - coordinates[j][1];
-					double distance = sqrt( ( distance_x*distance_x ) + ( distance_y*distance_y ) );
-					distance_matrix[i][j] = distance_matrix[j][i] = distance;
-				}
+			// if same city is selected set distance to 0 
+			if ( i == j ) {
+				distance_matrix[i][j] = 0.0;
+			} else {
+				// calculate euclidean distance with city j and store it in distance matrix as distance from i->j and j->i
+				double distance_x = x2 - coordinates[j][0];
+				double distance_y = y2 - coordinates[j][1];
+				double distance = sqrt( ( distance_x*distance_x ) + ( distance_y*distance_y ) );
+				distance_matrix[i][j] = distance_matrix[j][i] = distance;
 			}
 		}
+	}
 
 	if ( DEBUG ) {
 		for( int i = 0; i < CITIES; i++ ) {
@@ -203,5 +193,17 @@ void set_distance_matrix(int coordinates[CITIES][2], double distance_matrix[CITI
 			}
 			cout << endl;
 		}
+	}
+}
+
+void set_index_map( map<char, int> &index_map ) {
+	#pragma omp parallel for shared(index_map)
+	for( int i = 0; i < CITIES ; i++ ) {
+		index_map[city_map[i]] = i;
+	}
+
+	if ( DEBUG ) {
+		for ( auto i : index_map ) 
+				cout << i.first << "-" << i.second << endl; 
 	}
 }
