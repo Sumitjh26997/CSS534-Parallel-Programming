@@ -5,7 +5,7 @@
 #define CITIES         36    // 36 cities = ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789   (DO NOT CHANGE)
 #define MAX_GENERATION 150   //                                                    (DO NOT CHANGE)
 #define TOP_X          25000 // top 50%                                            (DO NOT CHANGE)
-#define MUTATE_RATE    50    // 50% for time being                                 (YOU MAY CHANGE IT)
+#define MUTATE_RATE    10    // 50% for time being                                 (YOU MAY CHANGE IT)
                                                                     
 #define DEBUG          true // for debugging   
 

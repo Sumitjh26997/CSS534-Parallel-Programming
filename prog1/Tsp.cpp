@@ -17,8 +17,8 @@ void populate( Trip trip[CHROMOSOMES], Trip offsprings[TOP_X] );
 
 // need to implement for your program 1
 extern void evaluate( Trip trip[CHROMOSOMES], double distance_matrix[CITIES][CITIES] );
-extern void crossover( Trip parents[TOP_X], Trip offsprings[TOP_X], int coordinates[CITIES][2] );
-extern void mutate( Trip offsprings[TOP_X] );
+extern void crossover( Trip parents[TOP_X], Trip offsprings[TOP_X], double distance_matrix[CITIES][CITIES], map<char, char> complement_map );
+extern void mutate( Trip offsprings[TOP_X], double distance_matrix[CITIES][CITIES] );
 extern void set_complement_map( map<char, char> &complement_map );
 extern void set_distance_matrix( int coordinates[CITIES][2], double distance_matrix[CITIES][CITIES]);
 
@@ -91,13 +91,13 @@ int main( int argc, char* argv[] ) {
     select( trip, parents );
 
     // generates TOP_X offsprings from TOP_X parenets
-    // crossover( parents, offsprings, coordinates );
+    crossover( parents, offsprings, distance_matrix, complement_map );
 
     // mutate offsprings
-    // mutate( offsprings );
+    mutate( offsprings, distance_matrix );
 
     // populate the next generation.
-    // populate( trip, offsprings );
+    populate( trip, offsprings );
   }
 
   // stop a timer
