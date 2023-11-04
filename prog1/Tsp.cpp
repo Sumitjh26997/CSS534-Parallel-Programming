@@ -16,11 +16,9 @@ void select( Trip trip[CHROMOSOMES], Trip parents[TOP_X] );
 void populate( Trip trip[CHROMOSOMES], Trip offsprings[TOP_X] );
 
 // need to implement for your program 1
-extern void evaluate( Trip trip[CHROMOSOMES], double distance_matrix[CITIES][CITIES], map<char, int> index_map );
-extern void crossover( Trip parents[TOP_X], Trip offsprings[TOP_X], double distance_matrix[CITIES][CITIES], map<char, char> complement_map, map<char, int> index_map );
-extern void mutate( Trip offsprings[TOP_X], double distance_matrix[CITIES][CITIES], map<char, int> index_map );
-extern void set_index_map( map<char, int> &index_map );
-extern void set_complement_map( map<char, char> &complement_map );
+extern void evaluate( Trip trip[CHROMOSOMES], double distance_matrix[CITIES][CITIES], int generation );
+extern void crossover( Trip parents[TOP_X], Trip offsprings[TOP_X], double distance_matrix[CITIES][CITIES] );
+extern void mutate( Trip offsprings[TOP_X], double distance_matrix[CITIES][CITIES] );
 extern void set_distance_matrix( int coordinates[CITIES][2], double distance_matrix[CITIES][CITIES]);
 
 /*
@@ -31,8 +29,6 @@ int main( int argc, char* argv[] ) {
   Trip shortest;                // the shortest path so far
   int coordinates[CITIES][2];   // (x, y) coordinates of all 36 cities: 
 	double distance_matrix[CITIES][CITIES]; // distance between all cities
-	map<char, char> complement_map; // hashmap storing complements of all cities
-	map<char, int> index_map; // hashmap of city indices
 	int nThreads = 1; // default # of threads is 1
   
   // verify the arguments
@@ -44,6 +40,7 @@ int main( int argc, char* argv[] ) {
       return -1; // wrong arguments
   }
   cout << "# threads = " << nThreads << endl;
+	cout << "Mutation Rate = " << MUTATE_RATE << endl;
 
   // shortest path not yet initialized
   shortest.itinerary[CITIES] = 0;  // null path
@@ -59,12 +56,6 @@ int main( int argc, char* argv[] ) {
   // change # of threads
   omp_set_num_threads( nThreads );
 
-	// set index map
-	set_index_map( index_map );
-
-	// calculate complement map
-	set_complement_map( complement_map );
-
 	// calculate distance matrix
 	set_distance_matrix( coordinates, distance_matrix );
 
@@ -72,7 +63,7 @@ int main( int argc, char* argv[] ) {
   for ( int generation = 0; generation < MAX_GENERATION; generation++ ) {
 
     // evaluate the distance of all 50000 trips
-    evaluate( trip, distance_matrix, index_map );
+    evaluate( trip, distance_matrix, generation );
 
     // just print out the progress
     if ( generation % 20 == 0 )
@@ -96,10 +87,10 @@ int main( int argc, char* argv[] ) {
     select( trip, parents );
 
     // generates TOP_X offsprings from TOP_X parenets
-    crossover( parents, offsprings, distance_matrix, complement_map, index_map );
+    crossover( parents, offsprings, distance_matrix );
 
     // mutate offsprings
-    mutate( offsprings, distance_matrix, index_map );
+    mutate( offsprings, distance_matrix );
 
     // populate the next generation.
     populate( trip, offsprings );
