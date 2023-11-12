@@ -6,7 +6,6 @@ import org.apache.hadoop.conf.*;
 import org.apache.hadoop.io.*;
 import org.apache.hadoop.mapred.*;
 import org.apache.hadoop.util.*;
-import org.w3c.dom.Text;
 
 public class InvertedIndexing {
 
@@ -17,26 +16,75 @@ public class InvertedIndexing {
 			}
 			public void map(LongWritable docId, Text value, OutputCollector<Text, Text> output,
 			Reporter reporter) throws IOException {
-			// retrieve # keywords from JobConf
-			int argc = Integer.parseInt( conf.get( "argc" ) );
-			// get the current file name
-			FileSplit fileSplit = ( FileSplit )reporter.getInputSplit( );
-			String filename = "" + fileSplit.getPath( ).getName( );
+				// retrieve # keywords from JobConf
+				int argc = Integer.parseInt( conf.get( "argc" ) );
+				// get the current file name
+				Set<String> args = new HashSet();
+				// retrieve keywords
+				for (int i = 0; i < argc; i++) {
+					args.add(conf.get("keyword" + i));
+				}
 
-			Hashtable<Text, int> table = new Hashtable<Text, int>( );
+				FileSplit fileSplit = ( FileSplit )reporter.getInputSplit( );
+				String filename = "" + fileSplit.getPath( ).getName( );
+				String line = value.toString();
+	    	StringTokenizer tokenizer = new StringTokenizer(line);
+				//collect if next token match one of the args
+				while (tokenizer.hasMoreTokens()) {
+					String token = tokenizer.nextToken();
+					if (args.contains(token)) {
+						output.collect(new Text(token), new Text(filename));
+					}
+				}
 		}
 	}
 
 	public static class Reduce extends MapReduceBase implements Reducer<Text, Text, Text, Text> {
 		public void reduce(Text key, Iterator<Text> values, OutputCollector<Text, Text> output,
 		Reporter reporter) throws IOException {
-			// actual computation is here.
-			// finally, print it out.
+			HashMap<String, Integer> hm = new HashMap<String, Integer>();
+			//Count the occurrence number of key in each file
+			while (values.hasNext()) {
+				String name = values.next().toString();
+				if (hm.containsKey(name)) {
+					hm.put(name, hm.get(name) + 1);
+				} else {
+					hm.put(name, 1);
+				}
+			}
+			//create Comparator to sort the result by count number
+			Comparator<java.util.Map.Entry<String, Integer>> valueComparator =
+					new Comparator<java.util.Map.Entry<String, Integer>>() {
+						@Override
+						public int compare(java.util.Map.Entry<String, Integer> e1, java.util.Map.Entry<String, Integer> e2) {
+							int v1 = e1.getValue();
+							int v2 = e2.getValue();
+							return v1 - v2;
+						}
+					};
+			
+			//sort the result
+			List<java.util.Map.Entry<String, Integer>> listDoc =
+					new ArrayList<java.util.Map.Entry<String, Integer>>(hm.entrySet());
+			Collections.sort(listDoc, valueComparator);
+			
+			//create output string
+			StringBuilder builder = new StringBuilder();
+			for (java.util.Map.Entry<String, Integer> entry : listDoc) {
+				builder.append(entry.getKey());
+				builder.append(" ");
+				builder.append(entry.getValue());
+				builder.append(" ");
+			}
+			
+			//output
+			Text docListText = new Text(builder.toString());
 			output.collect(key, docListText );
 		}
 	}
 
 	public static void main(String[] args) throws Exception {
+		long time = System.currentTimeMillis();
 		// input format:
 		// hadoop jar invertedindexes.jar InvertedIndexes input output keyword1 keyword2 ...
 		JobConf conf = new JobConf(InvertedIndexing.class); // AAAAA is this program’s file name
@@ -46,7 +94,7 @@ public class InvertedIndexing {
 		conf.setOutputValueClass(Text.class);
 
 		conf.setMapperClass(Map.class);
-		conf.setCombinerClass(Reduce.class);
+		//conf.setCombinerClass(Reduce.class);
 		conf.setReducerClass(Reduce.class);
 
 		conf.setInputFormat(TextInputFormat.class);
@@ -60,6 +108,7 @@ public class InvertedIndexing {
 			conf.set( "keyword" + i, args[i + 2] ); // keyword1, keyword2, ...
 
 			JobClient.runJob(conf);
+			System.out.println("Elapsed time = " + (System.currentTimeMillis() - time) + " ms");
 	}
 	
 }
